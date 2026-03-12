@@ -244,6 +244,7 @@ private fun SettingTypeOption(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ValueSelector(
     settingType: SettingType,
@@ -252,16 +253,28 @@ private fun ValueSelector(
 ) {
     when (settingType) {
         SettingType.REFRESH_RATE -> {
+            // Query available refresh rates from device display modes
+            val context = androidx.compose.ui.platform.LocalContext.current
+            val availableRates = remember {
+                val display = (context as? android.app.Activity)?.windowManager?.defaultDisplay
+                val modes = display?.supportedModes ?: emptyArray()
+                val rates = modes.map { kotlin.math.round(it.refreshRate).toInt() }
+                    .distinct()
+                    .sorted()
+                if (rates.isEmpty()) listOf(60, 90, 120) else rates
+            }
+
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                listOf("60", "120").forEach { rate ->
+                availableRates.forEach { rate ->
+                    val rateStr = rate.toString()
                     FilterChip(
-                        selected = currentValue == rate,
-                        onClick = { onValueChanged(rate) },
+                        selected = currentValue == rateStr,
+                        onClick = { onValueChanged(rateStr) },
                         label = { Text("${rate}Hz") },
-                        leadingIcon = if (currentValue == rate) {
+                        leadingIcon = if (currentValue == rateStr) {
                             { Icon(Icons.Filled.Check, contentDescription = null, Modifier.size(18.dp)) }
                         } else null,
                         modifier = Modifier.weight(1f)

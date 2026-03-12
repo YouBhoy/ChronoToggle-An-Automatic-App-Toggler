@@ -4,9 +4,11 @@ import androidx.compose.animation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -20,10 +22,12 @@ import com.chronotoggle.ui.components.ScheduleCard
 @Composable
 fun HomeScreen(
     schedules: List<Schedule>,
+    missingPermissions: List<String>,
     onAddSchedule: () -> Unit,
     onEditSchedule: (Schedule) -> Unit,
     onToggleSchedule: (Schedule) -> Unit,
-    onDeleteSchedule: (Schedule) -> Unit
+    onDeleteSchedule: (Schedule) -> Unit,
+    onRunNow: (Schedule) -> Unit
 ) {
     Scaffold(
         topBar = {
@@ -96,6 +100,43 @@ fun HomeScreen(
                     )
                 }
 
+                if (missingPermissions.isNotEmpty()) {
+                    item {
+                        Card(
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.errorContainer
+                            ),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(16.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    Icons.Filled.Warning,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onErrorContainer
+                                )
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Column {
+                                    Text(
+                                        text = "Missing Permissions",
+                                        style = MaterialTheme.typography.titleSmall,
+                                        color = MaterialTheme.colorScheme.onErrorContainer
+                                    )
+                                    Text(
+                                        text = missingPermissions.joinToString(", "),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onErrorContainer
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
                 items(
                     items = schedules,
                     key = { it.id }
@@ -104,7 +145,8 @@ fun HomeScreen(
                         schedule = schedule,
                         onToggle = onToggleSchedule,
                         onEdit = onEditSchedule,
-                        onDelete = onDeleteSchedule
+                        onDelete = onDeleteSchedule,
+                        onRunNow = onRunNow
                     )
                 }
 

@@ -24,6 +24,7 @@ fun ScheduleCard(
     onToggle: (Schedule) -> Unit,
     onEdit: (Schedule) -> Unit,
     onDelete: (Schedule) -> Unit,
+    onRunNow: (Schedule) -> Unit,
     modifier: Modifier = Modifier
 ) {
     var showDeleteDialog by remember { mutableStateOf(false) }
@@ -107,6 +108,18 @@ fun ScheduleCard(
                 )
 
                 Row {
+                    IconButton(
+                        onClick = { onRunNow(schedule) },
+                        modifier = Modifier.size(36.dp)
+                    ) {
+                        Icon(
+                            Icons.Filled.PlayArrow,
+                            contentDescription = "Run Now",
+                            modifier = Modifier.size(18.dp),
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
+
                     IconButton(
                         onClick = { onEdit(schedule) },
                         modifier = Modifier.size(36.dp)

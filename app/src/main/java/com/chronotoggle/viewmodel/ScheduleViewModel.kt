@@ -1,6 +1,9 @@
 package com.chronotoggle.viewmodel
 
 import android.app.Application
+import android.app.NotificationManager
+import android.content.Context
+import android.provider.Settings
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.chronotoggle.data.db.AppDatabase
@@ -8,8 +11,11 @@ import com.chronotoggle.data.model.Schedule
 import com.chronotoggle.data.model.SettingType
 import com.chronotoggle.data.repository.ScheduleRepository
 import com.chronotoggle.scheduler.ScheduleAlarmManager
+import com.chronotoggle.scheduler.SettingsExecutor
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 data class ScheduleEditorState(
     val id: Long? = null,
@@ -29,6 +35,10 @@ class ScheduleViewModel(application: Application) : AndroidViewModel(application
 
     private val _editorState = MutableStateFlow(ScheduleEditorState())
     val editorState: StateFlow<ScheduleEditorState> = _editorState.asStateFlow()
+
+    /** One-shot message to show the user after a setting is applied. */
+    private val _statusMessage = MutableSharedFlow<String>()
+    val statusMessage: SharedFlow<String> = _statusMessage.asSharedFlow()
 
     init {
         val dao = AppDatabase.getInstance(application).scheduleDao()
@@ -109,9 +119,17 @@ class ScheduleViewModel(application: Application) : AndroidViewModel(application
                 repository.insert(schedule)
             }
 
-            // Schedule/update the alarm
             val saved = repository.getById(id) ?: schedule.copy(id = id)
+
+            // Schedule the alarm for the set time
             ScheduleAlarmManager.scheduleAlarm(getApplication(), saved)
+
+            val timeStr = "%d:%02d %s".format(
+                if (saved.hour == 0) 12 else if (saved.hour > 12) saved.hour - 12 else saved.hour,
+                saved.minute,
+                if (saved.hour < 12) "AM" else "PM"
+            )
+            _statusMessage.emit("⏰ Scheduled for $timeStr. Tap ▶ to run now.")
 
             onComplete()
         }
@@ -123,8 +141,10 @@ class ScheduleViewModel(application: Application) : AndroidViewModel(application
             repository.update(updated)
             if (updated.isEnabled) {
                 ScheduleAlarmManager.scheduleAlarm(getApplication(), updated)
+                _statusMessage.emit("⏰ Schedule enabled")
             } else {
                 ScheduleAlarmManager.cancelAlarm(getApplication(), updated.id)
+                _statusMessage.emit("Schedule disabled")
             }
         }
     }
@@ -134,5 +154,34 @@ class ScheduleViewModel(application: Application) : AndroidViewModel(application
             ScheduleAlarmManager.cancelAlarm(getApplication(), schedule.id)
             repository.delete(schedule)
         }
+    }
+
+    /** Immediately execute a schedule's setting. */
+    fun runNow(schedule: Schedule) {
+        viewModelScope.launch {
+            val result = withContext(Dispatchers.IO) {
+                try {
+                    SettingsExecutor.execute(getApplication(), schedule)
+                } catch (e: Exception) {
+                    android.util.Log.e("ScheduleViewModel", "Failed to execute setting: ${e.message}", e)
+                    "❌ Failed: ${e.message}"
+                }
+            }
+            _statusMessage.emit(result)
+        }
+    }
+
+    /** Check which permissions are missing. */
+    fun getMissingPermissions(): List<String> {
+        val app = getApplication<Application>()
+        val missing = mutableListOf<String>()
+        if (!Settings.System.canWrite(app)) {
+            missing.add("Modify System Settings")
+        }
+        val nm = app.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        if (!nm.isNotificationPolicyAccessGranted) {
+            missing.add("Do Not Disturb Access")
+        }
+        return missing
     }
 }

@@ -1,6 +1,15 @@
 package com.chronotoggle.ui.navigation
 
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Snackbar
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -10,6 +19,7 @@ import androidx.navigation.navArgument
 import com.chronotoggle.ui.screens.HomeScreen
 import com.chronotoggle.ui.screens.ScheduleEditorScreen
 import com.chronotoggle.viewmodel.ScheduleViewModel
+import kotlinx.coroutines.flow.collectLatest
 
 @Composable
 fun AppNavGraph(viewModel: ScheduleViewModel) {
@@ -17,13 +27,24 @@ fun AppNavGraph(viewModel: ScheduleViewModel) {
     val schedules by viewModel.allSchedules.collectAsStateWithLifecycle()
     val editorState by viewModel.editorState.collectAsStateWithLifecycle()
 
-    NavHost(
-        navController = navController,
-        startDestination = Screen.Home.route
-    ) {
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    // Collect status messages and show as Snackbar
+    LaunchedEffect(Unit) {
+        viewModel.statusMessage.collectLatest { message ->
+            snackbarHostState.showSnackbar(message)
+        }
+    }
+
+    Box(modifier = Modifier.fillMaxSize()) {
+        NavHost(
+            navController = navController,
+            startDestination = Screen.Home.route
+        ) {
         composable(Screen.Home.route) {
             HomeScreen(
                 schedules = schedules,
+                missingPermissions = viewModel.getMissingPermissions(),
                 onAddSchedule = {
                     viewModel.resetEditor()
                     navController.navigate(Screen.Editor.createRoute())
@@ -37,6 +58,9 @@ fun AppNavGraph(viewModel: ScheduleViewModel) {
                 },
                 onDeleteSchedule = { schedule ->
                     viewModel.deleteSchedule(schedule)
+                },
+                onRunNow = { schedule ->
+                    viewModel.runNow(schedule)
                 }
             )
         }
@@ -69,5 +93,14 @@ fun AppNavGraph(viewModel: ScheduleViewModel) {
                 onBack = { navController.popBackStack() }
             )
         }
+        }
+
+        // Snackbar overlay shown at bottom of screen over all content
+        SnackbarHost(
+            hostState = snackbarHostState,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(16.dp)
+        )
     }
 }
